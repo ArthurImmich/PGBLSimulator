@@ -1,133 +1,135 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulador PGBL vs. Outro Investimento</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-  </style>
-<script type="importmap">
-{
-  "imports": {
-    "recharts": "https://aistudiocdn.com/recharts@^3.3.0",
-    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/"
-  }
-}
-</script>
-</head>
-<body class="bg-gray-50">
-  <div id="root"></div>
-  <script type="module">
-    // External library imports, resolved by the importmap above
-    import React, { useState, useCallback, useMemo } from 'react';
-    import ReactDOM from 'react-dom/client';
-    import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 
-    // --- START OF CODE from constants.ts ---
-
-    // Os valores padrão para "Outro Investimento" são baseados em um ETF de um índice amplo.
-
-    // Valores baseados na portaria para 2025
-    const DEFAULT_INSS_TABLE = [
-      { id: 1, limit: 1518.00, rate: 7.5 },
-      { id: 2, limit: 2793.88, rate: 9 },
-      { id: 3, limit: 4190.83, rate: 12 },
-      { id: 4, limit: 8157.41, rate: 14 },
-      { id: 5, limit: null, rate: 14 } // Para salários acima do teto
-    ];
-
-    // Teto de contribuição para 2025: (1518.00*7.5%) + ((2793.88-1518.00)*9%) + ((4190.83-2793.88)*12%) + ((8157.41-4190.83)*14%) = 951.63
-    const DEFAULT_INSS_CAP = 951.63;
-
-    // Tabela de IR anual para 2025 (ano-calendário 2025)
-    const DEFAULT_IR_TABLE = [
-      { id: 1, limit: 28467.20, rate: 0, deduction: 0 },
-      { id: 2, limit: 33919.80, rate: 7.5, deduction: 2135.04 },
-      { id: 3, limit: 45012.60, rate: 15, deduction: 4679.03 },
-      { id: 4, limit: 55976.16, rate: 22.5, deduction: 8054.97 },
-      { id: 5, limit: null, rate: 27.5, deduction: 10853.78 }
-    ];
-
-    const DEFAULT_INPUTS = {
-      monthlySalary: 10000,
-      pgblAnnualReturn: 8,
-      otherInvestmentAnnualReturn: 8,
-      investmentTerm: 30,
-      otherInvestmentAdminFee: 0.2,
-      pgblAdminFee: 2.0,
-      pgblContributionRate: 12,
-      otherDeductions: 5000,
-      simplifiedDiscountLimit: 16754.34, // Limite anual de desconto simplificado para 2025
-      inssCap: DEFAULT_INSS_CAP,
-      capitalGainsTaxRate: 15,
-      pgblWithdrawalTaxRate: 10, // Assuming regressive table for long term
-    };
-
-    // --- END OF CODE from constants.ts ---
-
-
-    // --- START OF CODE from services/calculator.ts ---
-
-    const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    const formatPercent = (value) => `${(value * 100).toFixed(2)}%`;
-
-    function calculateProgressiveTax(value, table) {
-      let totalTax = 0;
-      let lastLimit = 0;
-
-      for (const row of table) {
-        const upperLimit = row.limit ?? Infinity;
-        if (value > lastLimit) {
-          const taxableInBracket = Math.min(value, upperLimit) - lastLimit;
-          totalTax += taxableInBracket * (row.rate / 100);
-        } else {
-          break;
-        }
-        lastLimit = upperLimit;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulador PGBL vs. Outro Investimento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.3.1",
+        "react/": "https://esm.sh/react@18.3.1/",
+        "react-dom": "https://esm.sh/react-dom@18.3.1",
+        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+        "recharts": "https://esm.sh/recharts@2.12.7"
+      }
+    }
+    </script>
+  </head>
 
-      if ('deduction' in table[0]) { // It's an IR table
+  <body class="bg-gray-50">
+    <div id="root"></div>
+    <script type="module">
+      // External library imports, resolved by the importmap above
+      import React, { useState, useCallback, useMemo } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+
+      // --- START OF CODE from constants.ts ---
+
+      // Os valores padrão para "Outro Investimento" são baseados em um ETF de um índice amplo.
+
+      // Valores baseados na portaria para 2025
+      const DEFAULT_INSS_TABLE = [
+        { id: 1, limit: 1518.00, rate: 7.5 },
+        { id: 2, limit: 2793.88, rate: 9 },
+        { id: 3, limit: 4190.83, rate: 12 },
+        { id: 4, limit: 8157.41, rate: 14 },
+        { id: 5, limit: null, rate: 14 } // Para salários acima do teto
+      ];
+
+      // Teto de contribuição para 2025: (1518.00*7.5%) + ((2793.88-1518.00)*9%) + ((4190.83-2793.88)*12%) + ((8157.41-4190.83)*14%) = 951.63
+      const DEFAULT_INSS_CAP = 951.63;
+
+      // Tabela de IR anual para 2025 (ano-calendário 2025)
+      const DEFAULT_IR_TABLE = [
+        { id: 1, limit: 28467.20, rate: 0, deduction: 0 },
+        { id: 2, limit: 33919.80, rate: 7.5, deduction: 2135.04 },
+        { id: 3, limit: 45012.60, rate: 15, deduction: 4679.03 },
+        { id: 4, limit: 55976.16, rate: 22.5, deduction: 8054.97 },
+        { id: 5, limit: null, rate: 27.5, deduction: 10853.78 }
+      ];
+
+      const DEFAULT_INPUTS = {
+        monthlySalary: 10000,
+        pgblAnnualReturn: 8,
+        otherInvestmentAnnualReturn: 8,
+        investmentTerm: 30,
+        otherInvestmentAdminFee: 0.2,
+        pgblAdminFee: 2.0,
+        pgblContributionRate: 12,
+        otherDeductions: 5000,
+        simplifiedDiscountLimit: 16754.34, // Limite anual de desconto simplificado para 2025
+        inssCap: DEFAULT_INSS_CAP,
+        capitalGainsTaxRate: 15,
+        pgblWithdrawalTaxRate: 10, // Assuming regressive table for long term
+      };
+
+      // --- END OF CODE from constants.ts ---
+
+
+      // --- START OF CODE from services/calculator.ts ---
+
+      const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+      const formatPercent = (value) => `${(value * 100).toFixed(2)}%`;
+
+      function calculateProgressiveTax(value, table) {
+        let totalTax = 0;
+        let lastLimit = 0;
+
+        for (const row of table) {
+          const upperLimit = row.limit ?? Infinity;
+          if (value > lastLimit) {
+            const taxableInBracket = Math.min(value, upperLimit) - lastLimit;
+            totalTax += taxableInBracket * (row.rate / 100);
+          } else {
+            break;
+          }
+          lastLimit = upperLimit;
+        }
+
+        if ('deduction' in table[0]) { // It's an IR table
           let applicableDeduction = 0;
           let applicableRate = 0;
           for (const row of table) {
-              if (value <= (row.limit ?? Infinity)) {
-                  applicableDeduction = row.deduction;
-                  applicableRate = row.rate;
-                  break;
-              }
-               if (row.limit === null) { // Fallback for the last bracket
-                  applicableDeduction = row.deduction;
-                  applicableRate = row.rate;
-              }
+            if (value <= (row.limit ?? Infinity)) {
+              applicableDeduction = row.deduction;
+              applicableRate = row.rate;
+              break;
+            }
+            if (row.limit === null) { // Fallback for the last bracket
+              applicableDeduction = row.deduction;
+              applicableRate = row.rate;
+            }
           }
           return (value * applicableRate / 100) - applicableDeduction;
+        }
+
+        return totalTax;
       }
 
-      return totalTax;
-    }
-
-    function calculateINSS(monthlySalary, inssTable, inssCap) {
+      function calculateINSS(monthlySalary, inssTable, inssCap) {
         let contribution = calculateProgressiveTax(monthlySalary, inssTable);
         contribution = Math.min(contribution, inssCap);
 
         const steps = [
-            { label: "Contribuição Mensal", value: formatCurrency(contribution), details: `Calculado sobre ${formatCurrency(monthlySalary)} com teto de ${formatCurrency(inssCap)}.`},
-            { label: "Contribuição Anual", value: formatCurrency(contribution * 12), details: `${formatCurrency(contribution)} x 12 meses.`},
+          { label: "Contribuição Mensal", value: formatCurrency(contribution), details: `Calculado sobre ${formatCurrency(monthlySalary)} com teto de ${formatCurrency(inssCap)}.` },
+          { label: "Contribuição Anual", value: formatCurrency(contribution * 12), details: `${formatCurrency(contribution)} x 12 meses.` },
         ];
 
         return { monthly: contribution, annual: contribution * 12, steps };
-    }
+      }
 
 
-    function calculateIR(
+      function calculateIR(
         annualGrossSalary,
         annualINSS,
         otherDeductions,
@@ -135,7 +137,7 @@
         pgblContributionRate,
         irTable,
         simplifiedDiscountLimit
-    ) {
+      ) {
         const steps = [];
 
         // --- Simplified Calculation ---
@@ -154,7 +156,7 @@
         steps.push({ label: "IR Devido (Completo com PGBL)", value: formatCurrency(completeIRWithPGBL) });
 
         const irDueWithPGBL = Math.min(simplifiedIR, completeIRWithPGBL);
-        steps.push({ label: "IR Devido Final (com PGBL)", value: formatCurrency(irDueWithPGBL), details: `Menor valor entre o simplificado e o completo.`});
+        steps.push({ label: "IR Devido Final (com PGBL)", value: formatCurrency(irDueWithPGBL), details: `Menor valor entre o simplificado e o completo.` });
 
 
         // --- Complete Calculation (without PGBL for benefit calculation) ---
@@ -165,10 +167,10 @@
         const pgblBenefit = irDueWithoutPGBL - irDueWithPGBL;
 
         return { irDue: irDueWithPGBL, pgblBenefit, steps };
-    }
+      }
 
 
-    function runSimulation(inputs) {
+      function runSimulation(inputs) {
         const annualGrossSalary = inputs.monthlySalary * 12;
 
         const inssResult = calculateINSS(inputs.monthlySalary, inputs.inssTable, inputs.inssCap);
@@ -177,13 +179,13 @@
         const annualPGBLContribution = annualGrossSalary * (inputs.pgblContributionRate / 100);
 
         const irResult = calculateIR(
-            annualGrossSalary,
-            annualINSS,
-            inputs.otherDeductions,
-            annualPGBLContribution,
-            inputs.pgblContributionRate,
-            inputs.irTable,
-            inputs.simplifiedDiscountLimit
+          annualGrossSalary,
+          annualINSS,
+          inputs.otherDeductions,
+          annualPGBLContribution,
+          inputs.pgblContributionRate,
+          inputs.irTable,
+          inputs.simplifiedDiscountLimit
         );
 
         const annualTaxBenefit = irResult.pgblBenefit;
@@ -192,11 +194,11 @@
         const annualOtherInvestment = Math.max(0, annualPGBLContribution - annualTaxBenefit);
 
         const pgblBenefitSteps = [
-            {
-                label: "Benefício Fiscal Anual",
-                value: formatCurrency(annualTaxBenefit),
-                details: "Economia de imposto gerada pelo PGBL. Para uma comparação justa, o aporte no outro investimento será o aporte do PGBL menos este benefício."
-            }
+          {
+            label: "Benefício Fiscal Anual",
+            value: formatCurrency(annualTaxBenefit),
+            details: "Economia de imposto gerada pelo PGBL. Para uma comparação justa, o aporte no outro investimento será o aporte do PGBL menos este benefício."
+          }
         ];
 
         // Investment simulation
@@ -207,21 +209,21 @@
         let totalContributedToOtherInvestment = 0;
 
         for (let i = 0; i < inputs.investmentTerm; i++) {
-            // PGBL Path
-            pgblBalance += annualPgblInvestment;
-            totalContributedToPgbl += annualPgblInvestment;
+          // PGBL Path
+          pgblBalance += annualPgblInvestment;
+          totalContributedToPgbl += annualPgblInvestment;
 
-            // Other Investment Path
-            otherInvestmentBalance += annualOtherInvestment;
-            totalContributedToOtherInvestment += annualOtherInvestment;
+          // Other Investment Path
+          otherInvestmentBalance += annualOtherInvestment;
+          totalContributedToOtherInvestment += annualOtherInvestment;
 
-            // Apply returns
-            pgblBalance *= (1 + inputs.pgblAnnualReturn / 100);
-            otherInvestmentBalance *= (1 + inputs.otherInvestmentAnnualReturn / 100);
+          // Apply returns
+          pgblBalance *= (1 + inputs.pgblAnnualReturn / 100);
+          otherInvestmentBalance *= (1 + inputs.otherInvestmentAnnualReturn / 100);
 
-            // Apply fees
-            pgblBalance *= (1 - inputs.pgblAdminFee / 100);
-            otherInvestmentBalance *= (1 - inputs.otherInvestmentAdminFee / 100);
+          // Apply fees
+          pgblBalance *= (1 - inputs.pgblAdminFee / 100);
+          otherInvestmentBalance *= (1 - inputs.otherInvestmentAdminFee / 100);
         }
 
         // --- Final taxation ---
@@ -232,10 +234,10 @@
         const pgblWithdrawalTax = pgblBalance * (inputs.pgblWithdrawalTaxRate / 100);
         const pgblNet = pgblBalance - pgblWithdrawalTax;
         finalValueSteps.push(
-            { label: "Aporte Anual", value: formatCurrency(annualPgblInvestment)},
-            { label: "Valor Bruto Acumulado", value: formatCurrency(pgblBalance) },
-            { label: "Total Aportado (Principal)", value: formatCurrency(totalContributedToPgbl) },
-            { label: "Imposto de Saque", value: `-${formatCurrency(pgblWithdrawalTax)}`, details: `Alíquota de ${inputs.pgblWithdrawalTaxRate}% sobre o valor bruto total.` }
+          { label: "Aporte Anual", value: formatCurrency(annualPgblInvestment) },
+          { label: "Valor Bruto Acumulado", value: formatCurrency(pgblBalance) },
+          { label: "Total Aportado (Principal)", value: formatCurrency(totalContributedToPgbl) },
+          { label: "Imposto de Saque", value: `-${formatCurrency(pgblWithdrawalTax)}`, details: `Alíquota de ${inputs.pgblWithdrawalTaxRate}% sobre o valor bruto total.` }
         );
 
 
@@ -245,11 +247,11 @@
         const otherInvestmentCapitalGainsTax = otherInvestmentGain > 0 ? otherInvestmentGain * (inputs.capitalGainsTaxRate / 100) : 0;
         const otherInvestmentNet = otherInvestmentBalance - otherInvestmentCapitalGainsTax;
         finalValueSteps.push(
-            { label: "Aporte Anual (Ajustado)", value: formatCurrency(annualOtherInvestment), details: `${formatCurrency(annualPgblInvestment)} (aporte base) - ${formatCurrency(annualTaxBenefit)} (benefício)` },
-            { label: "Valor Bruto Acumulado", value: formatCurrency(otherInvestmentBalance) },
-            { label: "Total Aportado (Principal)", value: formatCurrency(totalContributedToOtherInvestment) },
-            { label: "Ganho de Capital", value: formatCurrency(otherInvestmentGain), details: `${formatCurrency(otherInvestmentBalance)} (bruto) - ${formatCurrency(totalContributedToOtherInvestment)} (aportado)` },
-            { label: "Imposto sobre Ganho de Capital", value: `-${formatCurrency(otherInvestmentCapitalGainsTax)}`, details: `Alíquota de ${inputs.capitalGainsTaxRate}% sobre o ganho.` }
+          { label: "Aporte Anual (Ajustado)", value: formatCurrency(annualOtherInvestment), details: `${formatCurrency(annualPgblInvestment)} (aporte base) - ${formatCurrency(annualTaxBenefit)} (benefício)` },
+          { label: "Valor Bruto Acumulado", value: formatCurrency(otherInvestmentBalance) },
+          { label: "Total Aportado (Principal)", value: formatCurrency(totalContributedToOtherInvestment) },
+          { label: "Ganho de Capital", value: formatCurrency(otherInvestmentGain), details: `${formatCurrency(otherInvestmentBalance)} (bruto) - ${formatCurrency(totalContributedToOtherInvestment)} (aportado)` },
+          { label: "Imposto sobre Ganho de Capital", value: `-${formatCurrency(otherInvestmentCapitalGainsTax)}`, details: `Alíquota de ${inputs.capitalGainsTaxRate}% sobre o ganho.` }
         );
 
         // --- Resumo Final ---
@@ -260,166 +262,166 @@
         );
 
         return {
-            steps: {
-                inss: inssResult.steps,
-                ir: irResult.steps,
-                pgblBenefit: pgblBenefitSteps,
-                finalValue: finalValueSteps,
-            },
-            finalValues: {
-                pgbl: pgblNet,
-                otherInvestment: otherInvestmentNet
-            }
+          steps: {
+            inss: inssResult.steps,
+            ir: irResult.steps,
+            pgblBenefit: pgblBenefitSteps,
+            finalValue: finalValueSteps,
+          },
+          finalValues: {
+            pgbl: pgblNet,
+            otherInvestment: otherInvestmentNet
+          }
         };
-    }
+      }
 
-    function runSensitivityAnalysis(baseInputs) {
+      function runSensitivityAnalysis(baseInputs) {
         const analysis = [];
         const minSalary = 2000;
         const maxSalary = Math.max(30000, baseInputs.monthlySalary * 2);
         const steps = 15;
 
         for (let i = 0; i <= steps; i++) {
-            const salary = minSalary + (i * (maxSalary - minSalary) / steps);
-            const currentInputs = { ...baseInputs, monthlySalary: salary };
-            const result = runSimulation(currentInputs);
-            analysis.push({
-                salary: salary,
-                difference: result.finalValues.pgbl - result.finalValues.otherInvestment
-            });
+          const salary = minSalary + (i * (maxSalary - minSalary) / steps);
+          const currentInputs = { ...baseInputs, monthlySalary: salary };
+          const result = runSimulation(currentInputs);
+          analysis.push({
+            salary: salary,
+            difference: result.finalValues.pgbl - result.finalValues.otherInvestment
+          });
         }
         return analysis;
-    }
-    // --- END OF CODE from services/calculator.ts ---
+      }
+      // --- END OF CODE from services/calculator.ts ---
 
 
-    // --- START OF CODE from components ---
+      // --- START OF CODE from components ---
 
-    const Card = ({ title, children }) => {
-      return React.createElement("div", { className: "bg-white rounded-lg shadow-md p-6 mb-8" },
-        React.createElement("h2", { className: "text-2xl font-bold text-gray-800 mb-4 border-b pb-2" }, title),
-        children
-      );
-    };
-
-    const InputControl = ({ label, id, value, onChange, unit, step = 0.1 }) => {
-      const handleChange = (e) => {
-        const numValue = e.target.value === '' ? 0 : parseFloat(e.target.value);
-        if (!isNaN(numValue)) {
-          onChange(numValue);
-        }
+      const Card = ({ title, children }) => {
+        return React.createElement("div", { className: "bg-white rounded-lg shadow-md p-6 mb-8" },
+          React.createElement("h2", { className: "text-2xl font-bold text-gray-800 mb-4 border-b pb-2" }, title),
+          children
+        );
       };
 
-      return React.createElement("div", null,
-        React.createElement("label", { htmlFor: id, className: "block text-sm font-medium text-gray-700" }, label),
-        React.createElement("div", { className: "mt-1 relative rounded-md shadow-sm" },
-          React.createElement("input", {
-            type: "number",
-            id: id,
-            name: id,
-            value: value,
-            onChange: handleChange,
-            step: step,
-            className: "block w-full pl-3 pr-12 sm:text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
-          }),
-          unit && React.createElement("div", { className: "absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none" },
-            React.createElement("span", { className: "text-gray-500 sm:text-sm" }, unit)
-          )
-        )
-      );
-    };
-
-    const TrashIcon = () => (
-        React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", className: "h-5 w-5", viewBox: "0 0 20 20", fill: "currentColor" },
-            React.createElement('path', { fillRule: "evenodd", d: "M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z", clipRule: "evenodd" })
-        )
-    );
-
-    const EditableTable = ({ data, setData, columns, onAddRow, onRemoveRow }) => {
-      const handleCellChange = (rowIndex, columnKey, value) => {
-        const numericValue = parseFloat(value) || 0;
-        const newData = data.map((row, index) => {
-          if (index === rowIndex) {
-            return { ...row, [columnKey]: numericValue };
+      const InputControl = ({ label, id, value, onChange, unit, step = 0.1 }) => {
+        const handleChange = (e) => {
+          const numValue = e.target.value === '' ? 0 : parseFloat(e.target.value);
+          if (!isNaN(numValue)) {
+            onChange(numValue);
           }
-          return row;
-        });
-        setData(newData);
+        };
+
+        return React.createElement("div", null,
+          React.createElement("label", { htmlFor: id, className: "block text-sm font-medium text-gray-700" }, label),
+          React.createElement("div", { className: "mt-1 relative rounded-md shadow-sm" },
+            React.createElement("input", {
+              type: "number",
+              id: id,
+              name: id,
+              value: value,
+              onChange: handleChange,
+              step: step,
+              className: "block w-full pl-3 pr-12 sm:text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+            }),
+            unit && React.createElement("div", { className: "absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none" },
+              React.createElement("span", { className: "text-gray-500 sm:text-sm" }, unit)
+            )
+          )
+        );
       };
 
-      return React.createElement("div", null,
-        React.createElement("div", { className: "overflow-x-auto" },
-          React.createElement("table", { className: "min-w-full divide-y divide-gray-200" },
-            React.createElement("thead", { className: "bg-gray-50" },
-              React.createElement("tr", null,
-                ...columns.map(col =>
-                  React.createElement("th", { key: String(col.key), scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" },
-                    col.header
-                  )
-                ),
-                React.createElement("th", { scope: "col", className: "relative px-6 py-3" },
-                  React.createElement("span", { className: "sr-only" }, "Remover")
-                )
-              )
-            ),
-            React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" },
-              data.map((row, rowIndex) =>
-                React.createElement("tr", { key: row.id },
+      const TrashIcon = () => (
+        React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", className: "h-5 w-5", viewBox: "0 0 20 20", fill: "currentColor" },
+          React.createElement('path', { fillRule: "evenodd", d: "M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z", clipRule: "evenodd" })
+        )
+      );
+
+      const EditableTable = ({ data, setData, columns, onAddRow, onRemoveRow }) => {
+        const handleCellChange = (rowIndex, columnKey, value) => {
+          const numericValue = parseFloat(value) || 0;
+          const newData = data.map((row, index) => {
+            if (index === rowIndex) {
+              return { ...row, [columnKey]: numericValue };
+            }
+            return row;
+          });
+          setData(newData);
+        };
+
+        return React.createElement("div", null,
+          React.createElement("div", { className: "overflow-x-auto" },
+            React.createElement("table", { className: "min-w-full divide-y divide-gray-200" },
+              React.createElement("thead", { className: "bg-gray-50" },
+                React.createElement("tr", null,
                   ...columns.map(col =>
-                    React.createElement("td", { key: String(col.key), className: "px-6 py-4 whitespace-nowrap" },
-                      React.createElement("div", { className: "relative" },
-                        React.createElement("input", {
-                          type: "number",
-                          value: row[col.key] === null ? '' : row[col.key],
-                          onChange: (e) => handleCellChange(rowIndex, col.key, e.target.value),
-                          className: "w-full bg-gray-50 border border-gray-200 rounded-md p-1 text-sm text-gray-900 focus:ring-blue-500 focus:border-blue-500",
-                          placeholder: row[col.key] === null ? 'Sem limite' : '',
-                          disabled: row[col.key] === null
-                        }),
-                        col.isRate && React.createElement("span", { className: "absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm" }, "%")
-                      )
+                    React.createElement("th", { key: String(col.key), scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" },
+                      col.header
                     )
                   ),
-                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-center" },
-                    React.createElement("button", {
+                  React.createElement("th", { scope: "col", className: "relative px-6 py-3" },
+                    React.createElement("span", { className: "sr-only" }, "Remover")
+                  )
+                )
+              ),
+              React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" },
+                data.map((row, rowIndex) =>
+                  React.createElement("tr", { key: row.id },
+                    ...columns.map(col =>
+                      React.createElement("td", { key: String(col.key), className: "px-6 py-4 whitespace-nowrap" },
+                        React.createElement("div", { className: "relative" },
+                          React.createElement("input", {
+                            type: "number",
+                            value: row[col.key] === null ? '' : row[col.key],
+                            onChange: (e) => handleCellChange(rowIndex, col.key, e.target.value),
+                            className: "w-full bg-gray-50 border border-gray-200 rounded-md p-1 text-sm text-gray-900 focus:ring-blue-500 focus:border-blue-500",
+                            placeholder: row[col.key] === null ? 'Sem limite' : '',
+                            disabled: row[col.key] === null
+                          }),
+                          col.isRate && React.createElement("span", { className: "absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm" }, "%")
+                        )
+                      )
+                    ),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-center" },
+                      React.createElement("button", {
                         onClick: () => onRemoveRow(row.id),
                         className: "text-red-500 hover:text-red-700 p-1 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500",
                         "aria-label": `Remover faixa ${row.id}`
                       },
-                      React.createElement(TrashIcon)
+                        React.createElement(TrashIcon)
+                      )
                     )
                   )
                 )
               )
             )
+          ),
+          React.createElement("div", { className: "mt-4" },
+            React.createElement("button", {
+              onClick: onAddRow,
+              type: "button",
+              className: "w-full flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            }, "Adicionar Faixa")
           )
-        ),
-        React.createElement("div", { className: "mt-4" },
-          React.createElement("button", {
-            onClick: onAddRow,
-            type: "button",
-            className: "w-full flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-          }, "Adicionar Faixa")
+        );
+      };
+
+      const CalculationStepView = ({ step }) => (
+        React.createElement("div", { className: "flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0" },
+          React.createElement("div", { className: "text-sm text-gray-600" },
+            step.label,
+            step.details && React.createElement("p", { className: "text-xs text-gray-400" }, step.details)
+          ),
+          React.createElement("div", { className: "text-sm font-semibold text-gray-800" }, step.value)
         )
       );
-    };
 
-    const CalculationStepView = ({ step }) => (
-        React.createElement("div", { className: "flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0" },
-            React.createElement("div", { className: "text-sm text-gray-600" },
-                step.label,
-                step.details && React.createElement("p", { className: "text-xs text-gray-400" }, step.details)
-            ),
-            React.createElement("div", { className: "text-sm font-semibold text-gray-800" }, step.value)
-        )
-    );
-
-    // --- END OF CODE from components ---
+      // --- END OF CODE from components ---
 
 
-    // --- START OF CODE from App.tsx ---
+      // --- START OF CODE from App.tsx ---
 
-    function App() {
+      function App() {
         const [inputs, setInputs] = useState(DEFAULT_INPUTS);
         const [inssTable, setInssTable] = useState(DEFAULT_INSS_TABLE);
         const [irTable, setIrTable] = useState(DEFAULT_IR_TABLE);
@@ -430,39 +432,39 @@
         const [isLoading, setIsLoading] = useState(false);
 
         const handleInputChange = (key, value) => {
-            setInputs(prev => ({ ...prev, [key]: value }));
+          setInputs(prev => ({ ...prev, [key]: value }));
         };
 
         const handleCalculate = useCallback(() => {
-            setIsLoading(true);
-            // Sort tables before simulation to ensure correct progressive calculation
-            const sortedInssTable = [...inssTable].sort((a, b) => (a.limit ?? Infinity) - (b.limit ?? Infinity));
-            const sortedIrTable = [...irTable].sort((a, b) => (a.limit ?? Infinity) - (b.limit ?? Infinity));
+          setIsLoading(true);
+          // Sort tables before simulation to ensure correct progressive calculation
+          const sortedInssTable = [...inssTable].sort((a, b) => (a.limit ?? Infinity) - (b.limit ?? Infinity));
+          const sortedIrTable = [...irTable].sort((a, b) => (a.limit ?? Infinity) - (b.limit ?? Infinity));
 
-            const fullInputs = { ...inputs, inssTable: sortedInssTable, irTable: sortedIrTable };
+          const fullInputs = { ...inputs, inssTable: sortedInssTable, irTable: sortedIrTable };
 
-            setTimeout(() => { // Simulate async work to show loading state
-                const simResults = runSimulation(fullInputs);
-                setResults(simResults);
+          setTimeout(() => { // Simulate async work to show loading state
+            const simResults = runSimulation(fullInputs);
+            setResults(simResults);
 
-                const sensitivityResults = runSensitivityAnalysis(fullInputs);
-                setSensitivityData(sensitivityResults);
+            const sensitivityResults = runSensitivityAnalysis(fullInputs);
+            setSensitivityData(sensitivityResults);
 
-                setIsLoading(false);
-            }, 50);
+            setIsLoading(false);
+          }, 50);
 
         }, [inputs, inssTable, irTable]);
 
         const barChartData = useMemo(() => {
-            if (!results) return [];
-            return [
-                { name: 'Investimento', PGBL: results.finalValues.pgbl, 'Outro Invest.': results.finalValues.otherInvestment }
-            ];
+          if (!results) return [];
+          return [
+            { name: 'Investimento', PGBL: results.finalValues.pgbl, 'Outro Invest.': results.finalValues.otherInvestment }
+          ];
         }, [results]);
 
         const handleSalaryTypeChange = (type) => {
-            if (salaryInputType === type) return;
-            setSalaryInputType(type);
+          if (salaryInputType === type) return;
+          setSalaryInputType(type);
         };
 
         const handleAddINSSRow = () => {
@@ -482,147 +484,148 @@
         };
 
         const salaryInputSection = React.createElement(InputControl, {
-            label: salaryInputType === 'monthly' ? "Valor Mensal" : "Valor Anual",
-            id: "salary",
-            value: salaryInputType === 'monthly' ? inputs.monthlySalary : Math.round(inputs.monthlySalary * 12),
-            onChange: v => handleInputChange('monthlySalary', salaryInputType === 'monthly' ? v : v / 12),
-            unit: "R$",
-            step: 100
+          label: salaryInputType === 'monthly' ? "Valor Mensal" : "Valor Anual",
+          id: "salary",
+          value: salaryInputType === 'monthly' ? inputs.monthlySalary : Math.round(inputs.monthlySalary * 12),
+          onChange: v => handleInputChange('monthlySalary', salaryInputType === 'monthly' ? v : v / 12),
+          unit: "R$",
+          step: 100
         });
 
         const inputParameters = React.createElement(Card, { title: "Parâmetros de Entrada" },
-            React.createElement("div", { className: "space-y-4" },
-                React.createElement("div", null,
-                    React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Salário Bruto"),
-                    React.createElement("div", { className: "flex items-center rounded-md border border-gray-200 p-1 bg-gray-50 mb-2" },
-                        React.createElement("button", { type: "button", onClick: () => handleSalaryTypeChange('monthly'), className: `w-1/2 rounded-md px-3 py-1 text-sm font-medium transition-colors ${salaryInputType === 'monthly' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:bg-gray-200'}` }, "Mensal"),
-                        React.createElement("button", { type: "button", onClick: () => handleSalaryTypeChange('annual'), className: `w-1/2 rounded-md px-3 py-1 text-sm font-medium transition-colors ${salaryInputType === 'annual' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:bg-gray-200'}` }, "Anual")
-                    ),
-                    salaryInputSection
-                ),
-                React.createElement(InputControl, { label: "Retorno Anual PGBL (%)", id: "pgblAnnualReturn", value: inputs.pgblAnnualReturn, onChange: v => handleInputChange('pgblAnnualReturn', v), unit: "%" }),
-                React.createElement(InputControl, { label: "Retorno Anual Outro Invest. (%)", id: "otherInvestmentAnnualReturn", value: inputs.otherInvestmentAnnualReturn, onChange: v => handleInputChange('otherInvestmentAnnualReturn', v), unit: "%" }),
-                React.createElement(InputControl, { label: "Prazo do Investimento (anos)", id: "investmentTerm", value: inputs.investmentTerm, onChange: v => handleInputChange('investmentTerm', v), unit: "anos", step: 1 }),
-                React.createElement(InputControl, { label: "Taxa de Adm. Outro Invest. (% a.a.)", id: "otherInvestmentAdminFee", value: inputs.otherInvestmentAdminFee, onChange: v => handleInputChange('otherInvestmentAdminFee', v), unit: "%" }),
-                React.createElement(InputControl, { label: "Taxa de Adm. PGBL (% a.a.)", id: "pgblAdminFee", value: inputs.pgblAdminFee, onChange: v => handleInputChange('pgblAdminFee', v), unit: "%" }),
-                React.createElement(InputControl, { label: "Contribuição PGBL (% do salário anual)", id: "pgblContributionRate", value: inputs.pgblContributionRate, onChange: v => handleInputChange('pgblContributionRate', v), unit: "%" }),
-                React.createElement(InputControl, { label: "Outras Deduções Anuais", id: "otherDeductions", value: inputs.otherDeductions, onChange: v => handleInputChange('otherDeductions', v), unit: "R$", step: 100 }),
-                React.createElement(InputControl, { label: "Limite Desconto Simplificado IR", id: "simplifiedDiscountLimit", value: inputs.simplifiedDiscountLimit, onChange: v => handleInputChange('simplifiedDiscountLimit', v), unit: "R$", step: 100 }),
-                React.createElement(InputControl, { label: "Taxa Imposto Ganho de Capital (%)", id: "capitalGainsTaxRate", value: inputs.capitalGainsTaxRate, onChange: v => handleInputChange('capitalGainsTaxRate', v), unit: "%" }),
-                React.createElement(InputControl, { label: "Taxa Saque PGBL (%)", id: "pgblWithdrawalTaxRate", value: inputs.pgblWithdrawalTaxRate, onChange: v => handleInputChange('pgblWithdrawalTaxRate', v), unit: "%" })
-            )
+          React.createElement("div", { className: "space-y-4" },
+            React.createElement("div", null,
+              React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Salário Bruto"),
+              React.createElement("div", { className: "flex items-center rounded-md border border-gray-200 p-1 bg-gray-50 mb-2" },
+                React.createElement("button", { type: "button", onClick: () => handleSalaryTypeChange('monthly'), className: `w-1/2 rounded-md px-3 py-1 text-sm font-medium transition-colors ${salaryInputType === 'monthly' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:bg-gray-200'}` }, "Mensal"),
+                React.createElement("button", { type: "button", onClick: () => handleSalaryTypeChange('annual'), className: `w-1/2 rounded-md px-3 py-1 text-sm font-medium transition-colors ${salaryInputType === 'annual' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:bg-gray-200'}` }, "Anual")
+              ),
+              salaryInputSection
+            ),
+            React.createElement(InputControl, { label: "Retorno Anual PGBL (%)", id: "pgblAnnualReturn", value: inputs.pgblAnnualReturn, onChange: v => handleInputChange('pgblAnnualReturn', v), unit: "%" }),
+            React.createElement(InputControl, { label: "Retorno Anual Outro Invest. (%)", id: "otherInvestmentAnnualReturn", value: inputs.otherInvestmentAnnualReturn, onChange: v => handleInputChange('otherInvestmentAnnualReturn', v), unit: "%" }),
+            React.createElement(InputControl, { label: "Prazo do Investimento (anos)", id: "investmentTerm", value: inputs.investmentTerm, onChange: v => handleInputChange('investmentTerm', v), unit: "anos", step: 1 }),
+            React.createElement(InputControl, { label: "Taxa de Adm. Outro Invest. (% a.a.)", id: "otherInvestmentAdminFee", value: inputs.otherInvestmentAdminFee, onChange: v => handleInputChange('otherInvestmentAdminFee', v), unit: "%" }),
+            React.createElement(InputControl, { label: "Taxa de Adm. PGBL (% a.a.)", id: "pgblAdminFee", value: inputs.pgblAdminFee, onChange: v => handleInputChange('pgblAdminFee', v), unit: "%" }),
+            React.createElement(InputControl, { label: "Contribuição PGBL (% do salário anual)", id: "pgblContributionRate", value: inputs.pgblContributionRate, onChange: v => handleInputChange('pgblContributionRate', v), unit: "%" }),
+            React.createElement(InputControl, { label: "Outras Deduções Anuais", id: "otherDeductions", value: inputs.otherDeductions, onChange: v => handleInputChange('otherDeductions', v), unit: "R$", step: 100 }),
+            React.createElement(InputControl, { label: "Limite Desconto Simplificado IR", id: "simplifiedDiscountLimit", value: inputs.simplifiedDiscountLimit, onChange: v => handleInputChange('simplifiedDiscountLimit', v), unit: "R$", step: 100 }),
+            React.createElement(InputControl, { label: "Taxa Imposto Ganho de Capital (%)", id: "capitalGainsTaxRate", value: inputs.capitalGainsTaxRate, onChange: v => handleInputChange('capitalGainsTaxRate', v), unit: "%" }),
+            React.createElement(InputControl, { label: "Taxa Saque PGBL (%)", id: "pgblWithdrawalTaxRate", value: inputs.pgblWithdrawalTaxRate, onChange: v => handleInputChange('pgblWithdrawalTaxRate', v), unit: "%" })
+          )
         );
 
         const inssTableCard = React.createElement(Card, { title: "Tabela de INSS (Mensal)" },
-            React.createElement("p", { className: "text-sm text-gray-500 mb-2" }, `Teto de contribuição: ${formatCurrency(inputs.inssCap)}`),
-            React.createElement(EditableTable, {
-                data: inssTable,
-                setData: setInssTable,
-                columns: [{ key: 'limit', header: 'Até (R$)' }, { key: 'rate', header: 'Alíquota', isRate: true }],
-                onAddRow: handleAddINSSRow,
-                onRemoveRow: handleRemoveINSSRow
-            })
+          React.createElement("p", { className: "text-sm text-gray-500 mb-2" }, `Teto de contribuição: ${formatCurrency(inputs.inssCap)}`),
+          React.createElement(EditableTable, {
+            data: inssTable,
+            setData: setInssTable,
+            columns: [{ key: 'limit', header: 'Até (R$)' }, { key: 'rate', header: 'Alíquota', isRate: true }],
+            onAddRow: handleAddINSSRow,
+            onRemoveRow: handleRemoveINSSRow
+          })
         );
 
         const irTableCard = React.createElement(Card, { title: "Tabela de IR (Anual)" },
-            React.createElement(EditableTable, {
-                data: irTable,
-                setData: setIrTable,
-                columns: [{ key: 'limit', header: 'Base de Cálculo (R$)' }, { key: 'rate', header: 'Alíquota', isRate: true }, { key: 'deduction', header: 'Dedução (R$)' }],
-                onAddRow: handleAddIRRow,
-                onRemoveRow: handleRemoveIRRow
-            })
+          React.createElement(EditableTable, {
+            data: irTable,
+            setData: setIrTable,
+            columns: [{ key: 'limit', header: 'Base de Cálculo (R$)' }, { key: 'rate', header: 'Alíquota', isRate: true }, { key: 'deduction', header: 'Dedução (R$)' }],
+            onAddRow: handleAddIRRow,
+            onRemoveRow: handleRemoveIRRow
+          })
         );
 
         const resultsSection = results && React.createElement(React.Fragment, null,
-            React.createElement(Card, { title: "Resultados da Simulação" },
-                React.createElement("h3", { className: "text-lg font-semibold text-gray-700 mt-4 mb-2" }, "Cálculos Detalhados"),
-                React.createElement("div", { className: "space-y-4" },
-                    React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "INSS"), results.steps.inss.map(step => React.createElement(CalculationStepView, { key: step.label, step: step }))),
-                    React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "Imposto de Renda"), results.steps.ir.map(step => React.createElement(CalculationStepView, { key: step.label, step: step }))),
-                    React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "Benefício Fiscal"), results.steps.pgblBenefit.map(step => React.createElement(CalculationStepView, { key: step.label, step: step }))),
-                    React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "Valor Final"), results.steps.finalValue.map((step, index) => React.createElement(CalculationStepView, { key: `${step.label}-${index}`, step: step })))
-                )
-            ),
-            React.createElement(Card, { title: "Gráficos Comparativos" },
-                React.createElement("h3", { className: "text-lg font-semibold text-center text-gray-700 mb-4" }, "Montante Final Líquido"),
-                React.createElement("div", { style: { width: '100%', height: 300 } },
-                    React.createElement(ResponsiveContainer, null,
-                        React.createElement(BarChart, { data: barChartData, margin: { top: 5, right: 30, left: 20, bottom: 5 } },
-                            React.createElement(CartesianGrid, { strokeDasharray: "3 3" }),
-                            React.createElement(XAxis, { dataKey: "name" }),
-                            React.createElement(YAxis, { tickFormatter: (tick) => formatCurrency(tick) }),
-                            React.createElement(Tooltip, { formatter: (value) => formatCurrency(value) }),
-                            React.createElement(Legend),
-                            React.createElement(Bar, { dataKey: "PGBL", fill: "#3b82f6" }),
-                            React.createElement(Bar, { dataKey: "Outro Invest.", fill: "#10b981" })
-                        )
-                    )
-                ),
-                sensitivityData && React.createElement(React.Fragment, null,
-                    React.createElement("h3", { className: "text-lg font-semibold text-center text-gray-700 mt-8 mb-4" }, "Diferença Líquida (PGBL - Outro Invest.) vs. Salário"),
-                    React.createElement("div", { style: { width: '100%', height: 300 } },
-                        React.createElement(ResponsiveContainer, null,
-                            React.createElement(LineChart, { data: sensitivityData, margin: { top: 5, right: 30, left: 20, bottom: 5 } },
-                                React.createElement(CartesianGrid, { strokeDasharray: "3 3" }),
-                                React.createElement(XAxis, { dataKey: "salary", tickFormatter: (tick) => formatCurrency(tick), name: "Salário Bruto Mensal" }),
-                                React.createElement(YAxis, { tickFormatter: (tick) => formatCurrency(tick) }),
-                                React.createElement(Tooltip, { formatter: (value, name, props) => [formatCurrency(value), 'Diferença'], labelFormatter: (label) => `Salário: ${formatCurrency(label)}` }),
-                                React.createElement(Legend),
-                                React.createElement(Line, { type: "monotone", dataKey: "difference", name: "Diferença (PGBL - Outro Invest.)", stroke: "#8884d8", strokeWidth: 2 })
-                            )
-                        )
-                    )
-                )
+          React.createElement(Card, { title: "Resultados da Simulação" },
+            React.createElement("h3", { className: "text-lg font-semibold text-gray-700 mt-4 mb-2" }, "Cálculos Detalhados"),
+            React.createElement("div", { className: "space-y-4" },
+              React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "INSS"), results.steps.inss.map(step => React.createElement(CalculationStepView, { key: step.label, step: step }))),
+              React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "Imposto de Renda"), results.steps.ir.map(step => React.createElement(CalculationStepView, { key: step.label, step: step }))),
+              React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "Benefício Fiscal"), results.steps.pgblBenefit.map(step => React.createElement(CalculationStepView, { key: step.label, step: step }))),
+              React.createElement("div", null, React.createElement("h4", { className: "font-medium text-gray-600" }, "Valor Final"), results.steps.finalValue.map((step, index) => React.createElement(CalculationStepView, { key: `${step.label}-${index}`, step: step })))
             )
+          ),
+          React.createElement(Card, { title: "Gráficos Comparativos" },
+            React.createElement("h3", { className: "text-lg font-semibold text-center text-gray-700 mb-4" }, "Montante Final Líquido"),
+            React.createElement("div", { style: { width: '100%', height: 300 } },
+              React.createElement(ResponsiveContainer, null,
+                React.createElement(BarChart, { data: barChartData, margin: { top: 5, right: 30, left: 20, bottom: 5 } },
+                  React.createElement(CartesianGrid, { strokeDasharray: "3 3" }),
+                  React.createElement(XAxis, { dataKey: "name" }),
+                  React.createElement(YAxis, { tickFormatter: (tick) => formatCurrency(tick) }),
+                  React.createElement(Tooltip, { formatter: (value) => formatCurrency(value) }),
+                  React.createElement(Legend),
+                  React.createElement(Bar, { dataKey: "PGBL", fill: "#3b82f6" }),
+                  React.createElement(Bar, { dataKey: "Outro Invest.", fill: "#10b981" })
+                )
+              )
+            ),
+            sensitivityData && React.createElement(React.Fragment, null,
+              React.createElement("h3", { className: "text-lg font-semibold text-center text-gray-700 mt-8 mb-4" }, "Diferença Líquida (PGBL - Outro Invest.) vs. Salário"),
+              React.createElement("div", { style: { width: '100%', height: 300 } },
+                React.createElement(ResponsiveContainer, null,
+                  React.createElement(LineChart, { data: sensitivityData, margin: { top: 5, right: 30, left: 20, bottom: 5 } },
+                    React.createElement(CartesianGrid, { strokeDasharray: "3 3" }),
+                    React.createElement(XAxis, { dataKey: "salary", tickFormatter: (tick) => formatCurrency(tick), name: "Salário Bruto Mensal" }),
+                    React.createElement(YAxis, { tickFormatter: (tick) => formatCurrency(tick) }),
+                    React.createElement(Tooltip, { formatter: (value, name, props) => [formatCurrency(value), 'Diferença'], labelFormatter: (label) => `Salário: ${formatCurrency(label)}` }),
+                    React.createElement(Legend),
+                    React.createElement(Line, { type: "monotone", dataKey: "difference", name: "Diferença (PGBL - Outro Invest.)", stroke: "#8884d8", strokeWidth: 2 })
+                  )
+                )
+              )
+            )
+          )
         );
 
         return React.createElement("div", { className: "min-h-screen bg-gray-50 text-gray-900" },
-            React.createElement("header", { className: "bg-white shadow-sm" },
-                React.createElement("div", { className: "max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" },
-                    React.createElement("h1", { className: "text-3xl font-bold leading-tight text-gray-900" }, "Simulador de Investimentos: PGBL vs. Outro Investimento")
-                )
-            ),
-            React.createElement("main", { className: "max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" },
-                React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-3 gap-8" },
-                    React.createElement("div", { className: "lg:col-span-1" },
-                        inputParameters,
-                        inssTableCard,
-                        irTableCard,
-                        React.createElement("button", {
-                            onClick: handleCalculate,
-                            disabled: isLoading,
-                            className: "w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:bg-blue-300"
-                        }, isLoading ? 'Calculando...' : 'Recalcular')
-                    ),
-                    React.createElement("div", { className: "lg:col-span-2" },
-                        resultsSection,
-                        !results && !isLoading && React.createElement("div", { className: "bg-white rounded-lg shadow-md p-6 text-center" },
-                            React.createElement("h2", { className: "text-2xl font-bold text-gray-800 mb-2" }, "Bem-vindo!"),
-                            React.createElement("p", { className: "text-gray-600" }, "Preencha os campos ao lado e clique em \"Recalcular\" para iniciar a simulação.")
-                        )
-                    )
-                )
+          React.createElement("header", { className: "bg-white shadow-sm" },
+            React.createElement("div", { className: "max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8" },
+              React.createElement("h1", { className: "text-3xl font-bold leading-tight text-gray-900" }, "Simulador de Investimentos: PGBL vs. Outro Investimento")
             )
+          ),
+          React.createElement("main", { className: "max-w-7xl mx-auto py-6 sm:px-6 lg:px-8" },
+            React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-3 gap-8" },
+              React.createElement("div", { className: "lg:col-span-1" },
+                inputParameters,
+                inssTableCard,
+                irTableCard,
+                React.createElement("button", {
+                  onClick: handleCalculate,
+                  disabled: isLoading,
+                  className: "w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:bg-blue-300"
+                }, isLoading ? 'Calculando...' : 'Recalcular')
+              ),
+              React.createElement("div", { className: "lg:col-span-2" },
+                resultsSection,
+                !results && !isLoading && React.createElement("div", { className: "bg-white rounded-lg shadow-md p-6 text-center" },
+                  React.createElement("h2", { className: "text-2xl font-bold text-gray-800 mb-2" }, "Bem-vindo!"),
+                  React.createElement("p", { className: "text-gray-600" }, "Preencha os campos ao lado e clique em \"Recalcular\" para iniciar a simulação.")
+                )
+              )
+            )
+          )
         );
-    }
+      }
 
-    // --- END OF CODE from App.tsx ---
+      // --- END OF CODE from App.tsx ---
 
 
-    // --- START OF CODE from index.tsx ---
+      // --- START OF CODE from index.tsx ---
 
-    const rootElement = document.getElementById('root');
-    if (!rootElement) {
-      throw new Error("Could not find root element to mount to");
-    }
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
 
-    const root = ReactDOM.createRoot(rootElement);
-    root.render(
-      React.createElement(React.StrictMode, null, React.createElement(App, null))
-    );
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        React.createElement(React.StrictMode, null, React.createElement(App, null))
+      );
 
-    // --- END OF CODE from index.tsx ---
-  </script>
-</body>
+      // --- END OF CODE from index.tsx ---
+    </script>
+  </body>
+
 </html>
