@@ -46,9 +46,6 @@
         { id: 5, limit: null, rate: 14 } // Para salários acima do teto
       ];
 
-      // Teto de contribuição para 2025: (1518.00*7.5%) + ((2793.88-1518.00)*9%) + ((4190.83-2793.88)*12%) + ((8157.41-4190.83)*14%) = 951.63
-      const DEFAULT_INSS_CAP = 951.63;
-
       // Tabela de IR anual para 2025 (ano-calendário 2025)
       const DEFAULT_IR_TABLE = [
         { id: 1, limit: 28467.20, rate: 0, deduction: 0 },
@@ -68,7 +65,6 @@
         pgblContributionRate: 12,
         otherDeductions: 5000,
         simplifiedDiscountLimit: 16754.34, // Limite anual de desconto simplificado para 2025
-        inssCap: DEFAULT_INSS_CAP,
         capitalGainsTaxRate: 15,
         pgblWithdrawalTaxRate: 10, // Assuming regressive table for long term
       };
@@ -116,7 +112,13 @@
         return totalTax;
       }
 
-      function calculateINSS(monthlySalary, inssTable, inssCap) {
+      function calculateINSSCap(inssTable) {
+        const maxLimit = Math.max(...inssTable.filter(row => row.limit !== null).map(row => row.limit));
+        return calculateProgressiveTax(maxLimit, inssTable);
+      }
+
+      function calculateINSS(monthlySalary, inssTable) {
+        const inssCap = calculateINSSCap(inssTable);
         let contribution = calculateProgressiveTax(monthlySalary, inssTable);
         contribution = Math.min(contribution, inssCap);
 
@@ -173,7 +175,7 @@
       function runSimulation(inputs) {
         const annualGrossSalary = inputs.monthlySalary * 12;
 
-        const inssResult = calculateINSS(inputs.monthlySalary, inputs.inssTable, inputs.inssCap);
+        const inssResult = calculateINSS(inputs.monthlySalary, inputs.inssTable);
         const annualINSS = inssResult.annual;
 
         const annualPGBLContribution = annualGrossSalary * (inputs.pgblContributionRate / 100);
@@ -516,7 +518,9 @@
         );
 
         const inssTableCard = React.createElement(Card, { title: "Tabela de INSS (Mensal)" },
-          React.createElement("p", { className: "text-sm text-gray-500 mb-2" }, `Teto de contribuição: ${formatCurrency(inputs.inssCap)}`),
+          React.createElement("p", { className: "text-sm text-gray-500 mb-2" }, 
+            `Teto de contribuição: ${formatCurrency(calculateINSSCap(inssTable))}`
+          ),
           React.createElement(EditableTable, {
             data: inssTable,
             setData: setInssTable,
